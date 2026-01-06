@@ -7,7 +7,6 @@
         body {
             background-color: #000;
             margin: 0;
-            padding: 0;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -17,22 +16,39 @@
             font-family: monospace;
             color: #fff;
         }
+        .menu {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        button {
+            background: #000;
+            color: #fff;
+            border: 1px solid #fff;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #fff;
+            color: #000;
+        }
         .stats {
             margin-bottom: 15px;
-            font-size: 1.5rem;
+            font-size: 1.2rem;
             letter-spacing: 2px;
         }
         #g {
             display: grid;
-            grid-template-columns: repeat(10, 30px);
-            grid-template-rows: repeat(10, 30px);
             gap: 2px;
             border: 2px solid #fff;
             padding: 2px;
+            background-color: #fff;
         }
         .c {
-            width: 30px;
-            height: 30px;
+            width: 25px;
+            height: 25px;
             background-color: #333;
             display: flex;
             justify-content: center;
@@ -40,6 +56,7 @@
             cursor: pointer;
             font-weight: bold;
             user-select: none;
+            font-size: 14px;
         }
         .c.r {
             background-color: #fff;
@@ -57,149 +74,117 @@
             margin-top: 20px;
             text-align: center;
             font-size: 0.8rem;
-            line-height: 1.5;
             color: #888;
         }
     </style>
 </head>
 <body>
 
-    <div class="stats">MINES: <span id="m-count">15</span></div>
-    
+    <div class="menu">
+        <button onclick="setup(8, 8, 10)">EASY</button>
+        <button onclick="setup(12, 12, 25)">MED</button>
+        <button onclick="setup(16, 16, 40)">HARD</button>
+    </div>
+
+    <div class="stats">MINES: <span id="m-count">0</span></div>
     <div id="g"></div>
 
     <div class="h">
-        LEFT CLICK : REVEAL <br>
-        RIGHT CLICK : FLAG
+        LEFT CLICK : REVEAL | RIGHT CLICK : FLAG
     </div>
 
     <script>
-        const size = 10;
-        const totalMines = 15;
         const grid = document.getElementById('g');
         const mineDisplay = document.getElementById('m-count');
         
         let cells = [];
-        let revealedCount = 0;
-        let flagsUsed = 0;
-        let firstClick = true;
+        let rCount = 0;
+        let flags = 0;
+        let first = true;
+        let curSize, curMines;
 
-        function updateMineCount() {
-            mineDisplay.innerText = totalMines - flagsUsed;
+        function setup(w, h, m) {
+            curSize = w;
+            curMines = m;
+            grid.style.gridTemplateColumns = `repeat(${w}, 25px)`;
+            init();
         }
 
         function init() {
             grid.innerHTML = '';
             cells = [];
-            revealedCount = 0;
-            flagsUsed = 0;
-            firstClick = true;
-            updateMineCount();
+            rCount = 0;
+            flags = 0;
+            first = true;
+            mineDisplay.innerText = curMines;
 
-            for (let i = 0; i < size * size; i++) {
+            for (let i = 0; i < curSize * curSize; i++) {
                 const div = document.createElement('div');
                 div.classList.add('c');
-                const cell = {
-                    el: div,
-                    mine: false,
-                    revealed: false,
-                    flagged: false,
-                    index: i
-                };
+                const cell = { el: div, mine: false, r: false, f: false, i: i };
 
-                div.addEventListener('click', () => {
-                    if (cell.revealed) chord(cell);
-                    else reveal(cell);
-                });
-                
-                div.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    flag(cell);
-                });
+                div.addEventListener('click', () => cell.r ? chord(cell) : reveal(cell));
+                div.addEventListener('contextmenu', (e) => { e.preventDefault(); flag(cell); });
 
                 grid.appendChild(div);
                 cells.push(cell);
             }
         }
 
-        function generateMines(excludeIndex) {
-            let minePositions = new Set();
-            while(minePositions.size < totalMines) {
-                let pos = Math.floor(Math.random() * size * size);
-                if (pos !== excludeIndex) minePositions.add(pos);
+        function generate(safeIdx) {
+            let pos = new Set();
+            while(pos.size < curMines) {
+                let p = Math.floor(Math.random() * cells.length);
+                if (p !== safeIdx) pos.add(p);
             }
-            cells.forEach((cell, i) => {
-                if (minePositions.has(i)) cell.mine = true;
-            });
+            cells.forEach((c, i) => { if (pos.has(i)) c.mine = true; });
         }
 
-        function getNeighbors(index) {
-            const neighbors = [];
-            const x = index % size;
-            const y = Math.floor(index / size);
+        function getN(i) {
+            const n = [];
+            const x = i % curSize, y = Math.floor(i / curSize);
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dy = -1; dy <= 1; dy++) {
                     if (dx === 0 && dy === 0) continue;
                     const nx = x + dx, ny = y + dy;
-                    if (nx >= 0 && nx < size && ny >= 0 && ny < size) {
-                        neighbors.push(cells[ny * size + nx]);
-                    }
+                    if (nx >= 0 && nx < curSize && ny >= 0 && ny < curSize) n.push(cells[ny * curSize + nx]);
                 }
             }
-            return neighbors;
+            return n;
         }
 
-        function flag(cell) {
-            if (cell.revealed) return;
-            cell.flagged = !cell.flagged;
-            cell.el.classList.toggle('f');
-            flagsUsed += cell.flagged ? 1 : -1;
-            updateMineCount();
+        function flag(c) {
+            if (c.r) return;
+            c.f = !c.f;
+            c.el.classList.toggle('f');
+            flags += c.f ? 1 : -1;
+            mineDisplay.innerText = curMines - flags;
         }
 
-        function chord(cell) {
-            const neighbors = getNeighbors(cell.index);
-            const flags = neighbors.filter(n => n.flagged).length;
-            const mines = neighbors.filter(n => n.mine).length;
-
-            if (flags === mines) {
-                neighbors.forEach(n => reveal(n));
-            }
+        function chord(c) {
+            const n = getN(c.i);
+            if (n.filter(x => x.f).length === n.filter(x => x.mine).length) n.forEach(x => reveal(x));
         }
 
-        function reveal(cell) {
-            if (cell.revealed || cell.flagged) return;
-
-            if (firstClick) {
-                firstClick = false;
-                generateMines(cell.index);
-            }
-
-            cell.revealed = true;
-            cell.el.classList.add('r');
-
-            if (cell.mine) {
-                cell.el.classList.add('m');
+        function reveal(c) {
+            if (c.r || c.f) return;
+            if (first) { first = false; generate(c.i); }
+            c.r = true;
+            c.el.classList.add('r');
+            if (c.mine) {
+                c.el.classList.add('m');
                 setTimeout(() => { alert('LOSE'); init(); }, 10);
                 return;
             }
-
-            const neighbors = getNeighbors(cell.index);
-            const mines = neighbors.filter(n => n.mine).length;
-
-            if (mines > 0) {
-                cell.el.innerText = mines;
-            } else {
-                neighbors.forEach(n => reveal(n));
-            }
-
-            revealedCount++;
-            if (revealedCount === size * size - totalMines) {
-                setTimeout(() => { alert('WIN'); init(); }, 10);
-            }
+            const n = getN(c.i);
+            const m = n.filter(x => x.mine).length;
+            if (m > 0) c.el.innerText = m;
+            else n.forEach(x => reveal(x));
+            rCount++;
+            if (rCount === cells.length - curMines) setTimeout(() => { alert('WIN'); init(); }, 10);
         }
 
-        init();
+        setup(10, 10, 15);
     </script>
 </body>
 </html>

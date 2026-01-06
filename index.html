@@ -58,28 +58,30 @@
         const grid = document.getElementById('g');
         let cells = [];
         let revealedCount = 0;
+        let firstClick = true;
 
         function init() {
             grid.innerHTML = '';
             cells = [];
             revealedCount = 0;
-            let minePositions = new Set();
-            while(minePositions.size < minesCount) {
-                minePositions.add(Math.floor(Math.random() * size * size));
-            }
+            firstClick = true;
 
             for (let i = 0; i < size * size; i++) {
                 const div = document.createElement('div');
                 div.classList.add('c');
                 const cell = {
                     el: div,
-                    mine: minePositions.has(i),
+                    mine: false,
                     revealed: false,
                     flagged: false,
                     index: i
                 };
 
-                div.addEventListener('click', () => reveal(cell));
+                div.addEventListener('click', () => {
+                    if (cell.revealed) chord(cell);
+                    else reveal(cell);
+                });
+                
                 div.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
                     flag(cell);
@@ -90,16 +92,25 @@
             }
         }
 
+        function generateMines(excludeIndex) {
+            let minePositions = new Set();
+            while(minePositions.size < minesCount) {
+                let pos = Math.floor(Math.random() * size * size);
+                if (pos !== excludeIndex) minePositions.add(pos);
+            }
+            cells.forEach((cell, i) => {
+                if (minePositions.has(i)) cell.mine = true;
+            });
+        }
+
         function getNeighbors(index) {
             const neighbors = [];
             const x = index % size;
             const y = Math.floor(index / size);
-
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dy = -1; dy <= 1; dy++) {
                     if (dx === 0 && dy === 0) continue;
-                    const nx = x + dx;
-                    const ny = y + dy;
+                    const nx = x + dx, ny = y + dy;
                     if (nx >= 0 && nx < size && ny >= 0 && ny < size) {
                         neighbors.push(cells[ny * size + nx]);
                     }
@@ -114,8 +125,24 @@
             cell.el.classList.toggle('f');
         }
 
+        function chord(cell) {
+            const neighbors = getNeighbors(cell.index);
+            const flags = neighbors.filter(n => n.flagged).length;
+            const mines = neighbors.filter(n => n.mine).length;
+
+            if (flags === mines) {
+                neighbors.forEach(n => reveal(n));
+            }
+        }
+
         function reveal(cell) {
             if (cell.revealed || cell.flagged) return;
+
+            if (firstClick) {
+                firstClick = false;
+                generateMines(cell.index);
+            }
+
             cell.revealed = true;
             cell.el.classList.add('r');
 
